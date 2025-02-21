@@ -16,8 +16,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xfce4-terminal \
     unzip nano zip curl git wget \
     iputils-ping net-tools telnet xvfb \
-    htop software-properties-common lsb-release sudo supervisor mousepad locales tzdata \
-    tigervnc-standalone-server
+    htop software-properties-common lsb-release sudo supervisor mousepad locales tzdata
+
+RUN apt-get install -y \
+    xfonts-100dpi xfonts-75dpi \
+    tigervnc-common tigervnc-standalone-server
 
 # Install Python 3.10 and pip
 RUN apt-get install -y python3.10 python3-pip
@@ -27,4 +30,6 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
 
 RUN ln -fs /usr/share/zoneinfo/$TZ /etc/localtime \
     && dpkg-reconfigure -f noninteractive tzdata \
+    && locale-gen en_US.UTF-8 \
+    && dpkg-reconfigure locales \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
