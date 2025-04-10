@@ -1,35 +1,56 @@
-# Base image: Ubuntu 22.04
 FROM ubuntu:22.04
 
-# Set environment to non-interactive to avoid prompts
-ENV DEBIAN_FRONTEND=noninteractive \
-    TZ=Asia/Ho_Chi_Minh \
-    LANG='en_US.UTF-8' \
-    LANGUAGE='en_US:en' \
-    LC_ALL='en_US.UTF-8' \
-    USER=root
+# built-in packages
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y \
+        supervisor sudo net-tools wget \
+        dbus-x11 x11-utils alsa-utils \
+        mesa-utils libgl1-mesa-dri \
+        python3.10 python3.10-venv python3-pip \
+        iputils-ping htop \
+    && apt-get install -y \
+        xvfb x11vnc \
+    && apt-get install -y lxqt openbox
 
-# Install necessary system dependencies in a single layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    supervisor \
-    xfce4 \
-    xfce4-terminal \
-    unzip nano zip curl git wget \
-    iputils-ping net-tools telnet xvfb \
-    htop software-properties-common lsb-release sudo supervisor mousepad locales tzdata
+RUN apt-get install -y tini
 
-RUN apt-get install -y \
-    xfonts-100dpi xfonts-75dpi \
-    tigervnc-common tigervnc-standalone-server
+#================
+# Install Chrome
+#================
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+RUN dpkg -i google-chrome-stable_current_amd64.deb || true && \
+    apt-get update && \
+    apt-get install -y -f
+RUN rm ./google-chrome-stable_current_amd64.deb
 
-# Install Python 3.10 and pip
-RUN apt-get install -y python3.10 python3-pip
+RUN apt-get update \
+    && apt-get autoclean -y \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
-# Ensure python3.10 is the default
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.10 1
+ADD startup.sh /
+ADD supervisord.conf /etc/supervisor/conf.d/
+ADD xvfb.sh /usr/local/bin/
 
-RUN ln -fs /usr/share/zoneinfo/$TZ /etc/localtime \
-    && dpkg-reconfigure -f noninteractive tzdata \
-    && locale-gen en_US.UTF-8 \
-    && dpkg-reconfigure locales \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+#=====================
+# Set up python stuff
+#=====================
+RUN pip3 install --upgrade pip setuptools wheel
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip3 install --no-cache-dir -r requirements.txt
+
+#=======================
+# Download chromedriver
+#=======================
+RUN seleniumbase get chromedriver --path
+
+ENV SHELL=/bin/bash
+ENV PYTHONPATH=/app
+
+RUN chmod +x /startup.sh \
+    && chmod +x /usr/local/bin/xvfb.sh
+
+ENTRYPOINT ["/startup.sh"]
